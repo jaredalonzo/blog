@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { compileMDX } from "next-mdx-remote/rsc";
 import rehypePrettyCode from "rehype-pretty-code";
 import { getAllPosts, getPostBySlug } from "@/lib/posts";
@@ -43,6 +44,11 @@ export default async function PostPage({ params }: Props) {
 
   return (
     <main className="max-w-4xl mx-auto px-4 py-16">
+      <div className="mb-10">
+        <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          ← Home
+        </Link>
+      </div>
       <header className="mb-10">
         <time className="text-sm text-gray-400">{post.frontmatter.pubDate}</time>
         <h1 className="text-3xl font-semibold mt-1">{post.frontmatter.title}</h1>
