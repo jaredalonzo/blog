@@ -51,7 +51,7 @@ export default async function PostPage({ params }: Props) {
       </div>
       <header className="mb-8 sm:mb-10">
         <time className="text-sm text-gray-400">{post.frontmatter.pubDate}</time>
-        <h1 className="text-2xl sm:text-3xl font-semibold mt-1">{post.frontmatter.title}</h1>
+        <h1 className="text-3xl font-semibold mt-1">{post.frontmatter.title}</h1>
         {post.frontmatter.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3">
             {post.frontmatter.tags.map((tag) => (
@@ -65,7 +65,7 @@ export default async function PostPage({ params }: Props) {
           </div>
         )}
       </header>
-      <article className="prose sm:prose-lg dark:prose-invert max-w-none">{content}</article>
+      <article className="prose prose-lg dark:prose-invert max-w-none">{content}</article>
     </main>
   );
 }
