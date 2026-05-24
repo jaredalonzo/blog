@@ -3,7 +3,7 @@ title: "Building a Real-Time Analyst Agent Using LangGraph"
 description: "A walkthrough of building a queue-driven LangGraph agent that analyzes real-time events in sports."
 pubDate: 2026-05-21
 tags: ["langgraph", "kafka", "agents"]
-draft: true
+draft: false 
 ---
 
 I'd read enough about agents to feel like I understood them. You give the model a goal, some tools, and let it loop until it's done. I'd built a few of those. Then I tried to build one that has no goal given to it — one that just watches a stream of events and decides, on its own, what's worth paying attention to.
@@ -16,7 +16,7 @@ I needed something with a concrete, testable output. "Notable vs. noise" is a re
 
 The domain also has structure that maps cleanly to real engineering problems. Events arrive in a stream. Some are paired (a steal and a turnover are the same play, emitted twice). Context accumulates — a three-pointer means something different when it cuts a ten-point lead to seven in the fourth than when it extends a blowout in the first. All of that has to be handled explicitly.
 
-The event data comes from `nba_api`, a Python library that wraps the NBA's stats endpoints. It handles authentication, rate limiting, and response parsing — a meaningful chunk of work that would've been a project in itself to build from scratch. The catch: `nba_api.live`, the module for in-progress games, turned out to be broken. It ships with outdated browser headers that the NBA CDN's firewall rejects with a 403, but the library catches the HTML error response, tries to parse it as JSON, and surfaces a misleading `JSONDecodeError`. The 403 is invisible. I had to build a custom live client from scratch — direct `requests` calls with the right browser-like headers. More on that in Post 4.
+The event data comes from `nba_api`, a <a href="https://github.com/swar/nba_api" target="_blank" rel="noopener noreferrer">Python library</a> that wraps the NBA's stats endpoints. It handles authentication, rate limiting, and response parsing — a meaningful chunk of work that would've been a project in itself to build from scratch. The catch: `nba_api.live`, the module for in-progress games, turned out to be broken. It ships with outdated browser headers that the NBA CDN's firewall rejects with a 403, but the library catches the HTML error response, tries to parse it as JSON, and surfaces a misleading `JSONDecodeError`. The 403 is invisible. I had to build a custom live client from scratch — direct `requests` calls with the right browser-like headers. More on that in Post 4.
 
 ## The decision that shaped everything else
 
@@ -26,12 +26,12 @@ Putting the agent behind a Kafka queue was the choice that seemed the most intui
 
 - **The agent doesn't initiate anything.** It wakes up when Kafka delivers a message. There's no "run" button.
 - **State has to accumulate across events the agent didn't ask for.** The running score, the last five scoring plays, per-player foul counts — all of that has to live somewhere and get updated with every event, whether or not the agent decides the event is worth narrating.
-- **The system has to handle duplicates.** `PlayByPlayV3` emits two events per action number for paired plays — a steal and the turnover it created are the same moment, sent twice. Without explicit deduplication, the agent produces two contradictory insights for one play.
+- **The system has to handle duplicates.** `nba_api`'s `PlayByPlayV3` emits two events per action number for paired plays — a steal and the turnover it created are the same moment, sent twice. Without explicit deduplication, the agent produces two contradictory insights for one play.
 - **Latency budget is different.** A chat agent has to respond in a second or two. This agent has seconds to spare between events. But loose latency cuts both ways. With time to spare, the temptation is to pass everything to the LLM and let it sort things out. That's expensive and degrades output quality. Substitutions, period markers, early-quarter timeouts, duplicate paired plays — none of these are worth a classifier call. Each one that slips through costs money and pollutes the model's context with noise. The solution was a deterministic pre-filter that catches these mechanical skips before they ever reach the LLM. Anything the rules don't cover falls through to the classifier; anything they do cover gets logged and dropped.
 
 ## The consumer loop
 
-The core of the agent is a polling loop that pulls events from Kafka and passes them through the pipeline:
+The core of the agent is a polling loop that pulls events from Kafka topic and passes them through the pipeline:
 
 ```python
 while not stop.is_set():
