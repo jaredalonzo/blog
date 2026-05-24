@@ -1,0 +1,37 @@
+import { getAllPosts } from "@/lib/posts";
+
+const SITE_URL = "https://jaredalonzo.dev";
+const SITE_TITLE = "Jared Alonzo";
+const SITE_DESCRIPTION = "Engineering writing by Jared Alonzo.";
+
+export function GET() {
+  const posts = getAllPosts();
+
+  const items = posts
+    .map(
+      (post) => `
+    <item>
+      <title><![CDATA[${post.frontmatter.title}]]></title>
+      <link>${SITE_URL}/posts/${post.slug}</link>
+      <guid>${SITE_URL}/posts/${post.slug}</guid>
+      <pubDate>${new Date(post.frontmatter.pubDate).toUTCString()}</pubDate>
+      <description><![CDATA[${post.frontmatter.description}]]></description>
+    </item>`
+    )
+    .join("");
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>${SITE_TITLE}</title>
+    <link>${SITE_URL}</link>
+    <description>${SITE_DESCRIPTION}</description>
+    <language>en</language>
+    ${items}
+  </channel>
+</rss>`;
+
+  return new Response(xml, {
+    headers: { "Content-Type": "application/xml" },
+  });
+}
