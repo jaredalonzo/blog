@@ -43,17 +43,17 @@ export default async function PostPage({ params }: Props) {
   });
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-16">
-      <div className="mb-10">
+    <main className="max-w-4xl mx-auto px-4 py-10 sm:py-16">
+      <div className="mb-8 sm:mb-10">
         <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
           ← Home
         </Link>
       </div>
-      <header className="mb-10">
+      <header className="mb-8 sm:mb-10">
         <time className="text-sm text-gray-400">{post.frontmatter.pubDate}</time>
-        <h1 className="text-3xl font-semibold mt-1">{post.frontmatter.title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold mt-1">{post.frontmatter.title}</h1>
         {post.frontmatter.tags.length > 0 && (
-          <div className="flex gap-2 mt-3">
+          <div className="flex flex-wrap gap-2 mt-3">
             {post.frontmatter.tags.map((tag) => (
               <span
                 key={tag}
@@ -65,7 +65,7 @@ export default async function PostPage({ params }: Props) {
           </div>
         )}
       </header>
-      <article className="prose prose-lg dark:prose-invert max-w-none">{content}</article>
+      <article className="prose sm:prose-lg dark:prose-invert max-w-none">{content}</article>
     </main>
   );
 }
