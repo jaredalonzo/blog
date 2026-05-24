@@ -5,7 +5,7 @@ export default function Home() {
   const posts = getAllPosts();
 
   return (
-    <main className="max-w-2xl mx-auto px-4 py-16">
+    <main className="max-w-4xl mx-auto px-4 py-16">
       <section className="mb-14">
         <div className="flex items-baseline justify-between mb-3">
           <h1 className="text-2xl font-semibold">Jared Alonzo</h1>

@@ -20,6 +20,11 @@ export interface Post {
   content: string;
 }
 
+function toDateString(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().split("T")[0];
+  return String(value);
+}
+
 function validate(slug: string, data: Record<string, unknown>): PostFrontmatter {
   if (!data.title || typeof data.title !== "string")
     throw new Error(`${slug}: missing or invalid "title"`);
@@ -33,8 +38,8 @@ function validate(slug: string, data: Record<string, unknown>): PostFrontmatter 
   return {
     title: data.title,
     description: data.description,
-    pubDate: String(data.pubDate),
-    updatedDate: data.updatedDate ? String(data.updatedDate) : undefined,
+    pubDate: toDateString(data.pubDate),
+    updatedDate: data.updatedDate ? toDateString(data.updatedDate) : undefined,
     tags: data.tags as string[],
     draft: data.draft === true,
     canonical: data.canonical ? String(data.canonical) : undefined,

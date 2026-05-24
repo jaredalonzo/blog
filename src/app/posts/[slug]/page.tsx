@@ -42,7 +42,7 @@ export default async function PostPage({ params }: Props) {
   });
 
   return (
-    <main className="max-w-2xl mx-auto px-4 py-16">
+    <main className="max-w-4xl mx-auto px-4 py-16">
       <header className="mb-10">
         <time className="text-sm text-gray-400">{post.frontmatter.pubDate}</time>
         <h1 className="text-3xl font-semibold mt-1">{post.frontmatter.title}</h1>
@@ -59,7 +59,7 @@ export default async function PostPage({ params }: Props) {
           </div>
         )}
       </header>
-      <article className="prose prose-lg dark:prose-invert">{content}</article>
+      <article className="prose prose-lg dark:prose-invert max-w-none">{content}</article>
     </main>
   );
 }

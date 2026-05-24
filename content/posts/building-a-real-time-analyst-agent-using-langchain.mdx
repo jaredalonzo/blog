@@ -1,0 +1,107 @@
+---
+title: "Building a Real-Time Analyst Agent Using LangGraph"
+description: "A walkthrough of building a queue-driven LangGraph agent that analyzes real-time events in sports."
+pubDate: 2026-05-21
+tags: ["langgraph", "kafka", "agents"]
+draft: true
+---
+
+I'd read enough about agents to feel like I understood them. You give the model a goal, some tools, and let it loop until it's done. I'd built a few of those. Then I tried to build one that has no goal given to it — one that just watches a stream of events and decides, on its own, what's worth paying attention to.
+
+This is the first post in a series about building a LangGraph agent that watches NBA play-by-play events in real time and generates ESPN-style commentary for notable moments. Each post covers a specific decision the project forced me to make, and what I got wrong.
+
+## Why this project
+
+I needed something with a concrete, testable output. "Notable vs. noise" is a real boundary — you can look at what the agent produced and know immediately whether it's right. A Brunson 26-foot pull-up three to cut a fourth-quarter deficit to five is notable. A first-quarter substitution is not. That clarity made it a good learning vehicle: there's no hiding behind vague outputs.
+
+The domain also has structure that maps cleanly to real engineering problems. Events arrive in a stream. Some are paired (a steal and a turnover are the same play, emitted twice). Context accumulates — a three-pointer means something different when it cuts a ten-point lead to seven in the fourth than when it extends a blowout in the first. All of that has to be handled explicitly.
+
+The event data comes from `nba_api`, a Python library that wraps the NBA's stats endpoints. It handles authentication, rate limiting, and response parsing — a meaningful chunk of work that would've been a project in itself to build from scratch. The catch: `nba_api.live`, the module for in-progress games, turned out to be broken. It ships with outdated browser headers that the NBA CDN's firewall rejects with a 403, but the library catches the HTML error response, tries to parse it as JSON, and surfaces a misleading `JSONDecodeError`. The 403 is invisible. I had to build a custom live client from scratch — direct `requests` calls with the right browser-like headers. More on that in Post 4.
+
+## The decision that shaped everything else
+
+Every agent tutorial I found was chat-shaped. You type, it responds. The interface is a conversation. I wanted to build something that runs without a human in the loop — an agent that wakes up when an event arrives, not when someone asks it a question.
+
+Putting the agent behind a Kafka queue was the choice that seemed the most intuitive. A producer publishes play-by-play events to a topic; the agent subscribes and consumes/processes them one at a time. That single structural decision changed what I had to think about:
+
+- **The agent doesn't initiate anything.** It wakes up when Kafka delivers a message. There's no "run" button.
+- **State has to accumulate across events the agent didn't ask for.** The running score, the last five scoring plays, per-player foul counts — all of that has to live somewhere and get updated with every event, whether or not the agent decides the event is worth narrating.
+- **The system has to handle duplicates.** `PlayByPlayV3` emits two events per action number for paired plays — a steal and the turnover it created are the same moment, sent twice. Without explicit deduplication, the agent produces two contradictory insights for one play.
+- **Latency budget is different.** A chat agent has to respond in a second or two. This agent has seconds to spare between events. But loose latency cuts both ways. With time to spare, the temptation is to pass everything to the LLM and let it sort things out. That's expensive and degrades output quality. Substitutions, period markers, early-quarter timeouts, duplicate paired plays — none of these are worth a classifier call. Each one that slips through costs money and pollutes the model's context with noise. The solution was a deterministic pre-filter that catches these mechanical skips before they ever reach the LLM. Anything the rules don't cover falls through to the classifier; anything they do cover gets logged and dropped.
+
+## The consumer loop
+
+The core of the agent is a polling loop that pulls events from Kafka and passes them through the pipeline:
+
+```python
+while not stop.is_set():
+    msg = await loop.run_in_executor(None, consumer.poll, 1.0)
+    if msg is None:
+        continue
+    if msg.error():
+        if msg.error().code() == KafkaError._PARTITION_EOF:
+            continue
+        print(f"[agent] consumer error: {msg.error()}", flush=True)
+        continue
+
+    event = json.loads(msg.value())
+    await _process_event(event, tracker, seen_pairs)
+```
+
+`consumer.poll` is implemented in C and blocks the calling thread for up to the timeout duration — meaning Python can't do anything else on that thread while it waits for the next message. It runs in a thread executor (`loop.run_in_executor`) to keep the asyncio event loop free. That matters because the MCP-bridged tools the agent uses only support async invocation — they require an active event loop. When I added MCP tools to the agent, the entire call chain had to go async: `main`, `_process_event`, `_graph.ainvoke`. The consumer poll was the one piece that couldn't go async natively, so offloading it to a thread pool was the only way to keep both things working. Each event goes through `_process_event`, which updates the game context tracker, checks the dedup set, runs the pre-filter, and — if the event makes it through — hands it to the LangGraph graph.
+
+The graph sees one event at a time. Not a batch, not a conversation. One event, one invocation. The agent has to make a decision with only what it can see right now, plus whatever context the tracker has accumulated.
+
+## What I got wrong first
+
+I shipped the narrator with a severity scale — critical, notable, routine — and assumed the model would use it sensibly. It didn't. About 80% of insights came back tagged "critical." Brunson free throws in the second quarter: critical. Routine substitutions that made it past the pre-filter: critical. The model had no reason to ration the top label, so it didn't.
+
+The fix was writing a target distribution directly into the prompt:
+
+```
+Severity guidelines:
+- critical (10%): game-changing moments — go-ahead scores in the final two minutes,
+  buzzer-beaters, sixth foul on a key player in a close game
+- notable (60%): meaningful but not decisive — momentum runs, hot shooting stretches,
+  foul trouble building on a starter
+- routine (30%): context worth capturing but not urgent
+```
+
+With explicit percentages and concrete anti-examples, the distribution shifted immediately. The lesson: LLMs don't infer distributions from a label list. You have to state what you want.
+
+## What the agent actually produces
+
+Here's a real output from a Knicks-Cavaliers game, Q4, 3:30 left, Cleveland up five:
+
+```
+{
+  "severity": "critical",
+  "insight": "Jalen Brunson is single-handedly dragging the Knicks back into this
+    game — he's scored 7 straight New York points in the last two minutes, trimming
+    Cleveland's lead to just five with 3:30 left. The 34-point performance is a
+    one-man rescue mission, as Brunson has accounted for 4 of the Knicks' last 5
+    scoring plays. With a pullup triple from 26 feet to punctuate the run, Madison
+    Square Garden has to be electric — this comeback is very much alive.",
+  "event": {
+    "description": "Brunson 26' 3PT Pullup Jump Shot (34 PTS)",
+    "period": 4,
+    "clock": "PT03M30.00S"
+  }
+}
+```
+
+That's tagged correctly. The game context — seven straight points, four of the last five scoring plays, five points down with three minutes left — is what makes this critical, and all of that came from the tracker, not from the event itself. The event description alone is just "Brunson 26' 3PT Pullup Jump Shot (34 PTS)."
+
+## What comes next
+
+This post covered the shape of the system and the first two lessons: queue-driven agents require different thinking than chat agents, and LLMs need explicit calibration, not just labels.
+
+The following posts get into the decisions that followed:
+
+- **Post 2** — where game state lives, and why putting it in the consumer rather than the graph makes the agent easier to test
+- **Post 3** — why the classifier and narrator ended up as two separate LLM calls with different models, different temperatures, and different prompts
+- **Post 4** — a diagnostic story about `nba_api.live` silently swallowing a 403 and what it took to figure out what was actually broken
+- **Post 5** — how adding an MCP tool forced the entire agent async, and the 570ms-vs-1ms lesson about persistent subprocess sessions
+- **Post 6** — four moves that cut per-game cost by 60–70%, each validated against the previous baseline
+
+The pattern across all of them is the same: I made a decision that seemed fine, hit a wall, and had to rethink it. That's most of what building agents actually is.
