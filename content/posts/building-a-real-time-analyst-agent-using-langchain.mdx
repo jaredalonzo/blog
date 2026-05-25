@@ -8,7 +8,7 @@ draft: false
 
 I'd read enough about agents to feel like I understood them. You give the model a goal, some tools, and let it loop until it's done. I'd built a few of those. Then I tried to build one that has no goal given to it — one that just watches a stream of events and decides, on its own, what's worth paying attention to.
 
-This is the first post in a series about building a LangGraph agent that watches NBA play-by-play events in real time and generates ESPN-style commentary for notable moments. Each post covers a specific decision the project forced me to make, and what I got wrong.
+This is the first post in a series about building a LangGraph agent that watches NBA play-by-play events in real time and generates ESPN-style commentary for notable moments. Each post covers a specific decision the project forced me to make, and what I got wrong along the way.
 
 ## Why this project
 
@@ -98,7 +98,7 @@ This post covered the shape of the system and the first two lessons: queue-drive
 
 The following posts get into the decisions that followed:
 
-- **Post 2** — where game state lives, and why putting it in the consumer rather than the graph makes the agent easier to test
+- **[Post 2](/posts/game-context-tracker-langraph-state)** — where game state lives, and why putting it in the consumer rather than the graph makes the agent easier to test
 - **Post 3** — why the classifier and narrator ended up as two separate LLM calls with different models, different temperatures, and different prompts
 - **Post 4** — a diagnostic story about `nba_api.live` silently swallowing a 403 and what it took to figure out what was actually broken
 - **Post 5** — how adding an MCP tool forced the entire agent async, and the 570ms-vs-1ms lesson about persistent subprocess sessions
