@@ -1,0 +1,123 @@
+---
+title: "Two models, two jobs"
+description: "The classifier and the narrator have different jobs. They should have different prompts, different temperatures, and—it turned out—different models."
+pubDate: 2026-05-25
+tags: ["langgraph", "agents", "prompt-engineering"]
+draft: false
+---
+
+By this point the agent had a working pipeline. Events arrived from Kafka, a deterministic pre-filter knocked out the obvious noise — substitutions, period markers, early-quarter timeouts — and a LangGraph classifier decided whether what remained was worth deeper analysis.
+
+What it wasn't doing was saying anything. It could identify a notable play. It couldn't narrate one. The easy thing would have been to extend the classifier's prompt to handle both.
+
+The classifier was already working — routing roughly 40% of events to deeper analysis, skipping the rest. The next step was narration: take the events the classifier flagged as notable and generate ESPN-style commentary. The naive path was to add a second instruction to the existing prompt: classify the event, and if it's notable, write a 2–3 sentence insight.
+
+That's not what I did. A prompt with one clear job is easier to reason about than a prompt juggling two. When instructions get long and complex, splitting the work across separate agents — each with a focused role — tends to outperform loading everything onto one.
+
+## Different jobs, different requirements
+
+The classifier and the narrator have fundamentally different jobs, and those jobs pull in opposite directions on almost every dimension that matters.
+
+**Temperature.** The classifier's goal is deterministic routing — given the same event and the same game context, it should always make the same call. Is this a fourth-quarter lead change or not? Is this player in foul trouble or not? There's a right answer, and you want the model to find it consistently. `temperature=0`.
+
+The narrator's job is the opposite. You want prose that doesn't sound identical every time a Brunson pull-up three goes in. You want some variability, some voice. `temperature=0.4`.
+
+One model, one temperature setting. You can't serve both.
+
+**Tools.** The classifier has three tools available: `get_player_stats` for current-game box scores, `analyze_momentum` for recent scoring runs, and `get_player_profile` for career context. It decides which context to gather before making its routing decision.
+
+The narrator doesn't need to call any of those. By the time it runs, the classifier has already fetched whatever context it needed. The tool results are passed to the narrator as a text summary. Binding tools to the narrator would be unnecessary — and a potential source of hallucinated tool calls that would never resolve.
+
+**Output format.** The classifier emits a structured one-liner:
+
+```
+ANALYZE: Brunson at 29 points in Q4, three-point lead
+SKIP_ROUTINE: first-quarter substitution
+```
+
+The parser that reads this is about 12 lines. The narrator emits free prose with a severity tag on a separate line. Two output contracts. The same prompt can't serve both.
+
+In code, this is two objects:
+
+```python
+_llm = ChatAnthropic(model="claude-haiku-4-5", temperature=0)
+_narrator = ChatAnthropic(model="claude-sonnet-4-6", temperature=0.4)
+```
+
+Two LangGraph nodes. Two system prompts. Two roles.
+
+## A calibration error
+
+The first narrator prompt defined a severity scale — critical, notable, routine — with a sentence of guidance for each. Then I ran it against a game replay.
+
+About 80% of insights came back tagged `critical`.
+
+This is easy to diagnose in hindsight. LLMs default to the important end of any spectrum when there's nothing pulling them back. If you give the model three buckets and ask it to pick one, it treats the highest bucket as the default for anything it decided to narrate. The reasoning is almost circular: the classifier already decided this event was worth an insight, so the narrator treats "worth an insight" as evidence of criticality. Give it a scale without an anchor and it climbs to the top.
+
+The fix was two things. First, a target distribution written directly into the prompt:
+
+```
+Target distribution across a typical game: roughly 10% critical,
+60% notable, 30% routine. If you find yourself reaching for "critical"
+more than once or twice per quarter, you're miscalibrated — step down
+to "notable".
+```
+
+Second, a concrete anti-example for the top bucket:
+
+```
+If you can imagine the game continuing normally after this play,
+it is NOT critical.
+```
+
+That line did most of the work. Definitions tell the model what a category means; anti-examples tell it where the boundary is. In my experience with prompt engineering, explicit examples of what you don't want are more effective for nudging behavior than clear definitions alone — the model has something concrete to check against rather than a label to interpret.
+
+The full severity block in the narrator's system prompt now looks like this:
+
+```
+- "critical" — RARE. Only for plays that decide the game's outcome: a
+  go-ahead or game-tying basket inside the final 30 seconds of a
+  one-possession game, a buzzer-beater, an OT-winning shot, a player
+  reaching a career or NBA record, an ejection of a star, or an injury
+  that visibly changes the game. If you can imagine the game continuing
+  normally after this play, it is NOT critical.
+- "notable" — DEFAULT for any moment worth narrating: momentum runs,
+  foul trouble for a star, lead changes outside the final minute,
+  milestone approaches, big individual performances, key defensive
+  stops mid-quarter. When in doubt, choose this.
+- "routine" — for moments that, in hindsight, won't make the highlight
+  reel — a made layup in a 12-point game, a non-clutch free throw, an
+  early-quarter bucket that doesn't shift momentum.
+```
+
+After the change, the distribution looked like a game and not a highlight reel.
+
+## The compounding payoff
+
+The original per-game cost was $2–$4. The classifier was the expensive part — Sonnet 4.6 with prompt caching, processing every event that made it past the pre-filter.
+
+The question was whether a cheaper model could handle the classifier's job without meaningful quality loss. Haiku 4.5 costs roughly 3× less per input token and 3× less per output token. But cheaper per token doesn't automatically mean cheaper per call — if caching is cutting Sonnet's effective input cost to near zero, the math might not favor a swap.
+
+Because the two models were already separate objects, this was a testable hypothesis. I wrote a comparison script that ran both models against eight representative events — a mix of obvious skips, obvious analyzes, and edge cases — and measured decision agreement and cost per call side by side.
+
+Results: 87% agreement (7 of 8 events). The single disagreement was a semantic equivalence: both models correctly skipped the event, they just used different skip labels (`SKIP_EARLY` vs `SKIP_OTHER`). On cost, Haiku came out 39% cheaper than Sonnet with caching — not just because its per-token rate is lower, but because it writes tighter responses, so output tokens are lower too. The caching advantage on Sonnet wasn't enough to close the gap.
+
+The swap was a one-line change:
+
+```python
+_llm = ChatAnthropic(model="claude-haiku-4-5", temperature=0)
+```
+
+If the classifier and narrator had been the same model object, validating this swap would have meant evaluating narrator quality too — a harder test with a harder-to-measure output. The separation meant the classifier could be evaluated in isolation against a concrete criterion: does it agree with Sonnet at least 90% of the time? It did.
+
+## The pattern
+
+The two-LLM split kept the project's complexity simple. Don't ask one model to serve two roles with different requirements. The classifier's goal was deterministic routing — always the same decision on the same input — while the narrator needed variability and creativity to produce prose that didn't sound identical every time. That meant different temperatures, and different temperatures meant two separate models. Everything else (tools, output format, model selection) followed from that.
+
+The split also makes the system testable in pieces. You can validate the classifier in isolation. You can validate the narrator in isolation. You can swap one without re-evaluating the other. For a project that grew across many iterations, that separation absorbed a lot of change without breaking anything.
+
+The cost optimization story — the full version, with measurement infrastructure and a pre-filter — is the subject of a later post. The number that matters for now: $2–$4 per game became a problem worth solving. That the solution was clean is partly because of a design decision made much earlier, when the only thing that seemed to matter was getting the output format right.
+
+## What comes next
+
+The agent was working against a game replay — a producer feeding historical play-by-play data into Kafka with an artificial delay. The next step was live games. That meant `nba_api.live`, the library's module for in-progress games. It didn't work. The error it surfaced was a JSON parse error. The real cause was a 403. The next post covers the diagnostic arc and what it took to build a working live client from scratch.
