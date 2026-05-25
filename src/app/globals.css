@@ -30,15 +30,15 @@ pre {
   word-break: break-all;
 }
 
-/* rehype-pretty-code dual theme: apply light vars by default, dark vars under .dark */
-code[data-theme*=" "],
-code[data-theme*=" "] span {
+/* rehype-pretty-code dual theme: data-theme is on pre, not code */
+pre[data-theme*=" "],
+pre[data-theme*=" "] span {
   color: var(--shiki-light);
-  background-color: var(--shiki-light-bg);
+  background-color: #f5f5f5;
 }
 
-.dark code[data-theme*=" "],
-.dark code[data-theme*=" "] span {
+html.dark pre[data-theme*=" "],
+html.dark pre[data-theme*=" "] span {
   color: var(--shiki-dark);
   background-color: var(--shiki-dark-bg);
 }
