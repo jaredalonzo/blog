@@ -36,7 +36,7 @@ export default async function PostPage({ params }: Props) {
     options: {
       mdxOptions: {
         rehypePlugins: [
-          [rehypePrettyCode, { theme: "github-dark" }],
+          [rehypePrettyCode, { theme: { dark: "github-dark", light: "github-light" } }],
         ],
       },
     },
