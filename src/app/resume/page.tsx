@@ -43,11 +43,12 @@ export default function ResumePage() {
       <section className="mb-8">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Summary</h2>
         <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
-          Customer Engineer with 6+ years partnering with technical buyers — developer teams, platform owners, and
-          search/CMS leads — to scope, prototype, and ship integrations on complex software products. Comfortable
-          across the stack: SQL and Python for data work, JavaScript/TypeScript for demos and POCs, and APIs for
-          everything in between. Strongest at translating ambiguous customer goals into working, defensible technical
-          solutions.
+          Customer Engineer with 6+ years owning technical delivery for enterprise accounts — from discovery and
+          initial architecture through adoption and expansion. Strongest at diagnosing complex, multi-layer technical
+          problems and translating them into solutions clients and internal teams can act on. Fluent in
+          JavaScript/TypeScript, Python, and SQL. Comfortable operating across cross-functional teams and client
+          stakeholders — translating technical constraints into business context and business goals into technical
+          decisions.
         </p>
       </section>
 
@@ -55,8 +56,8 @@ export default function ResumePage() {
         <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Skills</h2>
         <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
           <li><span className="font-medium">Languages & Data:</span> SQL, Python, JavaScript, TypeScript, Bash, HTML/CSS</li>
-          <li><span className="font-medium">AI & Agentic Systems:</span> Claude, Warp, prompt engineering, agentic workflow design</li>
-          <li><span className="font-medium">Platforms & Tools:</span> REST/GraphQL APIs, Google Cloud Platform, Git</li>
+          <li><span className="font-medium">AI & Agentic Systems:</span> Claude, prompt engineering, agentic workflow design, MCP, agent skill writing</li>
+          <li><span className="font-medium">Platforms & Tools:</span> REST/GraphQL APIs, Elasticsearch, Kafka, Docker, LangChain, Warp, Google Cloud Platform, Git, Linear, Notion</li>
           <li><span className="font-medium">Customer Engineering:</span> Technical discovery, solution architecture, POCs, demos, enablement, cross-functional partnership with Sales, Product, and Engineering</li>
         </ul>
       </section>
@@ -68,15 +69,16 @@ export default function ResumePage() {
           <div>
             <div className="flex justify-between items-baseline">
               <p className="font-medium text-sm">Customer Success Engineer — Algolia</p>
-              <p className="text-xs text-gray-400 shrink-0 ml-4">Mar 2022 – Present</p>
+              <p className="text-xs text-gray-400 shrink-0 ml-4">Mar 2022 – Apr 2026</p>
             </div>
             <ul className="mt-2 space-y-1.5 text-sm text-gray-700 dark:text-gray-300">
-              <li>Own technical strategy for a portfolio of 22 Enterprise customers representing $3M in ARR, partnering with AEs and CSMs through evaluations, renewals, and expansions.</li>
-              <li>Drove feature adoption and contract expansion for marquee accounts across pharma (Moderna, Sanofi), consumer goods (Hasbro, Mondelēz), media (Pearson, National Geographic Society), and retail (Rue Gilt Groupe) through architecture reviews, integration design, and roadmap advocacy.</li>
-              <li>Onboard ~10 short-term clients per year through structured 3-month technical engagements — scoping requirements, configuring environments, and supporting integrations from contract signature through production launch and platform adoption.</li>
-              <li>Lead architecture reviews and technical discovery for prospects evaluating Algolia against competing search platforms; build POCs in JavaScript/TypeScript and Python against real customer datasets to validate use cases before signature.</li>
-              <li>Diagnose relevance and performance issues by querying customer indices and analyzing search logs in SQL; turn recurring findings into prioritized feature requests with Product.</li>
-              <li>Author reusable enablement assets — integration guides, demo templates, internal runbooks — adopted across the CSE team.</li>
+              <li>Owned technical strategy for a portfolio of 22 Enterprise customers ($3M ARR) — driving adoption, renewals, and expansions in partnership with AEs and CSMs across pharma (Moderna, Sanofi), consumer goods (Hasbro, Mondelēz), media (Pearson, National Geographic Society), and retail (Rue Gilt Groupe, Snipes).</li>
+              <li>Onboarded ~10 short-term clients per year through structured 3-month engagements — scoping requirements, configuring environments, and supporting integrations from contract signature through production launch.</li>
+              <li>Led architecture reviews and technical discovery for prospects evaluating Algolia against competing platforms; built POCs in JavaScript/TypeScript and Python against real customer datasets to validate use cases before signature.</li>
+              <li>Developed and delivered recurring technical workshops — quarterly account health checks covering search performance, query quality, indexing health, and API usage — surfacing upsell signals to AEs and risk flags to CSMs without requiring separate internal reviews.</li>
+              <li>Recovered a high-visibility enterprise retail account that saw zero conversion lift after activating personalization — diagnosed root causes spanning attribute selection, flat-vs-nested JSON limiting AI enrichment, and a catalog lifecycle mismatch; brokered a commercial accommodation and persuaded the client to change a core operational behavior, recovering measurable conversion lift within one month and retaining the account.</li>
+              <li>Architected a BOPIS solution for an enterprise shoe retailer with hundreds of store locations — documented three variant indexing strategies and two store-availability approaches with tradeoffs, advising against misusing the search index for time-sensitive inventory; delivered sample data structures and a working frontend-hydration code sandbox so their engineering team could make the right architectural call for their stack.</li>
+              <li>Diagnosed relevance and performance issues via SQL log analysis; advocated for product gaps by framing requests around ARR impact and churn risk. Authored reusable integration guides, demo templates, and runbooks adopted across the CSE team.</li>
             </ul>
           </div>
 
