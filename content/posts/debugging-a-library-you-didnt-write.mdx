@@ -1,0 +1,122 @@
+---
+title: "Debugging a library you didn't write"
+description: "A diagnostic story: why a third-party library silently swallowed a 403, why verifying your assumptions saves a few headaches, and what it took to build a working live client from scratch."
+pubDate: 2026-05-26
+tags: ["python", "debugging", "agents", "nba-api"]
+draft: false
+---
+
+The first call to `nba_api.live` raised `JSONDecodeError: Expecting value: line 1 column 1 (char 0)`. That's the exception you get when `json.loads()` is handed an empty string or something that isn't JSON at all. The obvious reading: the endpoint returned garbage — maybe the API was down, maybe the response format changed.
+
+That reading was wrong, and it was worth taking a few minutes to find out why.
+
+## Why the exception is misleading
+
+`nba_api.live` works like this: fire an HTTP request to `cdn.nba.com`, take the response body, call `json.loads()`. If the decode fails, the exception bubbles out as-is. The HTTP status code is never surfaced.
+
+If the server returns a 403 with an HTML error page — which is exactly what the NBA's CDN does when it doesn't like your request headers — the library attempts to JSON-parse the HTML, gets `Expecting value: line 1 column 1 (char 0)`, and raises that. It looks like a malformed JSON response. It's an access-denied response. The 403 status code and the HTML body both disappear.
+
+This is a straightforward library design issue. The historical endpoints in `nba_api` — the ones hitting `stats.nba.com` — don't have this problem because that server accepts the library's default headers. The live CDN (`cdn.nba.com`) has different access policies, and the library was never updated to account for them. I filed [issue #678](https://github.com/swar/nba_api/issues/678) <a href="https://github.com/swar/nba_api/issues/678"><img src="https://img.shields.io/github/issues/detail/state/swar/nba_api/678" alt="issue #678 status" style={{display:'inline',verticalAlign:'middle',margin:'0 2px'}} /></a> upstream to track the error-surfacing problem specifically — the header fix in PR #671 addresses the 403, but the misleading `JSONDecodeError` is a separate bug that would resurface any time the CDN rejects a request for a new reason.
+
+## The pushback that mattered
+
+The initial conclusion came quickly: the library is broken, the CDN rejects its headers, bypass it and hit the URLs directly. That was the right answer. It also came before the evidence was actually collected.
+
+The question that came back was simple: "Are you sure `nba_api.live` is dead?"
+
+That pushback mattered more than it might seem. "The library is broken" is a conclusion that's easy to reach when the evidence is ambiguous, and it's often wrong. The library might handle the header issue in a newer version. The 403 might be transient. The Chrome 87 User-Agent the library sends might actually work with a different combination of headers. Before bypassing a maintained library and writing your own replacement, you should know specifically what's failing and why.
+
+So: verify. Actually inspect the HTTP response. Actually inspect the headers `nba_api.live` sends. Actually confirm that the CDN returns 403 with HTML rather than a legitimately malformed JSON payload.
+
+```python
+# What headers does nba_api.live actually send?
+import nba_api.live.http as live_http
+print(live_http.HEADERS)
+
+# Then: a direct request with those same headers
+import requests
+resp = requests.get(
+    "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json",
+    headers=live_http.HEADERS,
+)
+print(resp.status_code)   # 403
+print(resp.text[:200])    # HTML error page
+```
+
+The headers were missing `Origin` and `Referer`. A direct request with browser headers confirmed the JSON came back cleanly. That was the evidence needed: the library wasn't going to fix this on its own, and the CDN's behavior was deterministic. Time to write a replacement.
+
+## The actual cause
+
+The NBA's CDN uses a WAF that checks whether requests look like they're coming from a real browser on `www.nba.com`. Actual browser requests include `Origin` and `Referer` headers automatically — the browser sets them when a request originates from a page on `nba.com`. `nba_api`'s defaults don't include them.
+
+Three headers are the minimum that consistently get through:
+
+```python
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+    "Origin": "https://www.nba.com",
+    "Referer": "https://www.nba.com/",
+}
+```
+
+A dated Chrome UA alone doesn't do it. `nba_api.live` ships Chrome 87 — from late 2020 — which is suspicious enough to trigger WAF rules even if the other headers were present. Using a current version (131 at time of writing) plus `Origin` and `Referer` gets you through consistently.
+
+This has since been reported upstream — [issue #670](https://github.com/swar/nba_api/issues/670) <a href="https://github.com/swar/nba_api/issues/670"><img src="https://img.shields.io/github/issues/detail/state/swar/nba_api/670" alt="issue #670 status" style={{display:'inline',verticalAlign:'middle',margin:'0 2px'}} /></a> documents the same 403 failure, and there's an [open PR #671](https://github.com/swar/nba_api/pull/671) <a href="https://github.com/swar/nba_api/pull/671"><img src="https://img.shields.io/github/pulls/detail/state/swar/nba_api/671" alt="PR #671 status" style={{display:'inline',verticalAlign:'middle',margin:'0 2px'}} /></a> that adds `Referer` to the live client's default headers. Testing confirms that `Referer` alone is sufficient; `Origin` helps but isn't strictly required.
+
+## Building the replacement
+
+`src/nba_live_client.py` is about 160 lines. The core is a `_get_json()` helper that checks the HTTP status code explicitly before attempting to decode:
+
+```python
+def _get_json(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> dict[str, Any]:
+    resp = _session.get(url, headers=_HEADERS, timeout=timeout)
+    if resp.status_code != 200:
+        raise LiveClientError(
+            f"HTTP {resp.status_code} from {url}: {resp.text[:200]!r}"
+        )
+    return resp.json()
+```
+
+The error that `nba_api.live` was masking is now explicit. Callers get a `LiveClientError` with the actual status code and the first 200 characters of the response body. That's enough to diagnose any future CDN configuration change without guessing.
+
+There's one other detail worth noting: the module uses a `requests.Session()` at module level. A live game polls every 5–10 seconds for 2–3 hours. Without session reuse, that's roughly 1,440 separate TCP+TLS handshakes per game. The `Session` reuses the underlying connection across calls. It's the kind of thing that's easy to miss during a first pass and obvious in retrospect — the polling pattern makes it more relevant than it would be for a one-off request.
+
+One exception beyond the base `LiveClientError`: `LiveGameNotStarted`. The CDN returns 403 specifically for games that haven't tipped off yet — no PBP file exists to serve. Without a distinct exception, that 403 is indistinguishable from a WAF rejection. With it, the polling loop can handle it separately:
+
+```python
+except LiveGameNotStarted:
+    print("[producer] game not started yet; waiting for tipoff")
+    time.sleep(poll_seconds)
+    continue
+```
+
+Pre-tipoff is a normal state, not a failure. The consumer shouldn't count it against its failure budget or apply exponential backoff. Those are reserved for actual network or server errors.
+
+## The polling loop
+
+The polling loop in `producer_live.py` has a failure budget and exponential backoff. Sixty consecutive failures at a 5-second poll interval is 5 minutes. If the CDN is down or unreachable for longer than that during a live game, something has gone wrong enough that a human should be involved.
+
+```python
+consecutive_failures += 1
+if consecutive_failures >= failure_budget:
+    raise SystemExit(1)
+backoff = min(poll_seconds * (2 ** (consecutive_failures - 1)), max_backoff)
+time.sleep(backoff)
+```
+
+The backoff caps at 60 seconds. The worst-case wait between polls during a partial outage is about a minute — long enough to avoid hammering a struggling server, short enough to catch the window when the CDN comes back up mid-game. Transient errors reset the counter when the next poll succeeds; the budget only fires on a sustained outage.
+
+## What the diagnostic arc is actually about
+
+The `nba_api.live` story is a specific instance of a general pattern: a library surfaces one error, the real cause is something else entirely, and finding the real cause requires the discipline to collect evidence before reaching a conclusion.
+
+The lesson isn't that third-party libraries lie. Most of the time a stack trace is telling you something true. The lesson is narrower: when the error doesn't fit what you know about the system — when a `JSONDecodeError` appears on a request to an endpoint you haven't changed — the verification step is cheap. A direct HTTP request with controlled headers takes two minutes. A wrong diagnosis can send you chasing the wrong problem.
+
+## What comes next
+
+The next phase was MCP integration — adding a server that provides career-level player context to the narrator. It turns out MCP-bridged tools in LangChain don't support synchronous invocation. That discovery forced an async refactor of the entire agent. The next post covers what that looks like in practice and why the persistent-session design turned a 570ms per-call overhead into 1ms.

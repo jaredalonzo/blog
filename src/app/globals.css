@@ -37,6 +37,13 @@ html.dark pre {
   color: #e1e4e8;
 }
 
+/* Shields.io badges: force inline so they sit next to surrounding text */
+.prose img[src*="img.shields.io"] {
+  display: inline;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
 /* rehype-pretty-code dual theme: data-theme is on pre, not code */
 pre[data-theme*=" "],
 pre[data-theme*=" "] span {
