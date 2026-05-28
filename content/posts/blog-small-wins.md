@@ -1,0 +1,85 @@
+# What Small Wins Actually Do for a Client Relationship
+
+There's a version of client success that looks like a series of big moments. A flawless launch. A major feature unlocked. A renewal signed. And those moments matter — they're the ones that make it into the QBR deck and the case study.
+
+But the relationships that actually last aren't built on big moments. They're built on something quieter. Something most people overlook until the day they need it.
+
+They're built on small wins.
+
+---
+
+## The Myth of the Big Fix
+
+Early in my career, I thought the goal was always the complete solution. Find the root cause, fix it fully, close the loop. Anything less felt like falling short.
+
+Then I started working on accounts where the complete solution wasn't available — where a product gap was real, a technical lift was too expensive, a partner agency had gone quiet, or a client's engineering team had deprioritized the work entirely. The full fix wasn't coming anytime soon. And the client still needed a reason to believe the partnership was worth their time.
+
+That's when I started understanding what small wins actually do.
+
+A small win isn't a consolation prize. It isn't what you offer when you've run out of better options. It's a deliberate choice — a signal to the client that things are moving, that someone is paying attention, that the relationship is alive even when the big milestones aren't. Progress doesn't have to be large to be real. It just has to be visible.
+
+---
+
+## What Stalls Actually Feel Like
+
+When momentum dies on an account, it rarely announces itself. There's no single moment where things go wrong. It's more gradual — a stakeholder who stops showing up to calls, a follow-up that takes a little longer to come back, a tone that shifts from engaged to polite.
+
+By the time it's obvious, you've already lost ground.
+
+I've watched this happen across accounts in different ways. Sometimes a client's internal priorities shifted and the work we were doing together got deprioritized. Sometimes a partner agency started billing per hour and the client pulled back on the technical lift. Sometimes the fix required a product change that wasn't on the roadmap yet, and there was genuinely nothing to move forward on — at least not at full scale.
+
+In each of those situations, the instinct is to wait. To hold off on the next touchpoint until you have something meaningful to report. To not bother the client until there's real news.
+
+That instinct is wrong. The worst thing you can do when momentum stalls is go quiet. Silence doesn't read as patience — it reads as abandonment.
+
+---
+
+## What a Small Win Actually Does
+
+A small win does something specific: it keeps the client's confidence alive during the gap between where things are and where they need to be.
+
+It might be a single configuration change that improves one query type. A cleaned-up data attribute that makes one corner of the product work better. A bug identified and logged — not yet fixed, but acknowledged and in the queue. A ten-minute call just to share what's been looked at and what's coming next.
+
+None of these are the answer. But all of them say the same thing: *we're still here. We're still working. You haven't been forgotten.*
+
+That matters more than most people realize — especially for enterprise clients who are managing dozens of vendor relationships simultaneously. The ones they renew with are rarely the ones who delivered the most. They're the ones who made them feel like partners. Small wins are relationship infrastructure. They don't solve the problem — they preserve the trust you'll need to solve it later.
+
+---
+
+## The Strategic Logic Underneath It
+
+Here's the thing that took me a while to fully appreciate: small wins aren't just relationship management. They're strategic.
+
+A client who has experienced small, consistent progress is a client who is psychologically prepared to tackle the harder work later. They've built a pattern of movement with you. They've seen that things get done. That history makes them more willing to take on the bigger lift when the conditions finally exist for it — and more willing to give you the benefit of the doubt when something doesn't go as planned.
+
+Contrast that with a client who has experienced months of stalled momentum, waiting for the big fix that never came. That client is already halfway out the door before the conversation about renewal even starts.
+
+The relationship you build through small wins is the same relationship that gets you through a hard quarter, a product gap that takes longer than expected, or a difficult conversation about scope. It's not just goodwill — it's resilience. The client who trusts you in the small moments is the client who stays with you through the large ones.
+
+---
+
+## How to Find the Small Win
+
+The small win is almost always there — you just have to look for it differently than you look for the big fix.
+
+Instead of asking "what's the complete solution here," ask "what's one thing that could be better by the end of this week." Instead of waiting until you have the full answer, ask "what can I share right now that shows progress is happening."
+
+Sometimes it's a finding. Sometimes it's a question answered. Sometimes it's a problem named clearly for the first time — because naming a problem precisely is its own form of forward motion.
+
+The key is keeping the client inside the work with you rather than on the outside looking in, wondering whether anything is happening at all.
+
+---
+
+## The Bigger Truth
+
+Client relationships aren't won in the big moments. They're sustained in the small ones.
+
+The launch, the renewal, the expansion — those are the result of something that was built over time, in the incremental moments most people don't write case studies about. The ten-minute check-in. The small configuration improvement. The honest update on where things stand.
+
+Those moments are unglamorous. They don't make the deck. But they're the reason the deck gets renewed.
+
+That's what small wins actually do.
+
+---
+
+*Jared Alonzo is a Customer Success Engineer with experience across search platforms, AI startups, and enterprise technical delivery.*
