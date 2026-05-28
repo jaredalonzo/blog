@@ -1,0 +1,135 @@
+---
+title: "What I didn't know about MCP"
+description: "Adding career context to the agent looked like a few hours of work. It was, but not the hours I expected — MCP-bridged tools don't support sync invocation, and that one constraint touched every layer of the agent."
+pubDate: 2026-05-27
+tags: ["mcp", "langgraph", "agents", "async", "python"]
+draft: false
+---
+
+The agent knew how a player was performing in the current game. It didn't know anything about them.
+
+The existing tools — `get_player_stats` and `analyze_momentum` — were game-scoped by design. Box scores, recent scoring runs, foul counts: data that updates play by play and expires at the final buzzer. Career context was a different shape entirely. LeBron's 27.2 PPG career average. The fact that Jokić was drafted 41st. The arcs that give individual moments weight.
+
+The obvious path would have been another `@tool` in `src/tools.py`. Add a `get_player_profile` function, bind it to the classifier alongside the others, done.
+
+I chose MCP instead. Career data doesn't change mid-game, which made it a natural candidate for a persistent subprocess with its own on-disk cache — separate lifecycle, separate concerns. I also wanted to understand how the protocol actually works end-to-end: how a client discovers tools at runtime, how the message exchange is structured, what stdio transport looks like in practice. Adding another `@tool` would have answered the first question and skipped the second entirely.
+
+## Building the server
+
+The Model Context Protocol uses a client-server architecture where the client discovers the server's available tools at runtime through a standardized handshake, then invokes them via protocol-level message exchange. The transport here is stdio — the agent spawns the MCP server as a Python subprocess and communicates over stdin/stdout. No port, no separate terminal, no extra configuration.
+
+The server is built with FastMCP, which reduces a working tool server to a decorator:
+
+```python
+from mcp.server.fastmcp import FastMCP
+mcp = FastMCP("nba-player-profile")
+
+@mcp.tool()
+def get_player_profile(player_id: str) -> dict:
+    ...
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
+```
+
+The protocol handshake worked correctly on the first try. The interesting part came with the real implementation.
+
+`get_player_profile` makes two `nba_api` calls: `CommonPlayerInfo` for biographical data and `PlayerCareerStats` for career averages and highs. Both are ~200–500ms over the wire, so a write-through cache to `data/player_profiles.json` matters — any subsequent call for the same player_id is a free dict lookup.
+
+Two surprises came up during implementation.
+
+The first: `nba_api` raises `KeyError` when you request an unknown `player_id`, not a clean `ValueError`. The underlying cause is that `stats.nba.com` returns a malformed payload — no `resultSet` key — for unknown IDs, and the library surfaces the raw key lookup failure. The fix was a targeted catch:
+
+```python
+try:
+    info_rows = (
+        commonplayerinfo.CommonPlayerInfo(player_id=player_id)
+        .get_normalized_dict()
+        .get("CommonPlayerInfo", [])
+    )
+except KeyError as e:
+    if "resultSet" in str(e):
+        raise ValueError(f"unknown player_id: {player_id}") from e
+    raise
+```
+
+A raw `KeyError` leaking through the MCP server would show up as an unstructured failure on the client side. `ValueError` gives the client something predictable to surface.
+
+The second surprise: `nba_api`'s `CareerHighs` table is postseason-only. This wasn't documented anywhere obvious. I discovered it by checking LeBron's career high and getting 51 back instead of 61. That's his postseason single-game high — his best regular-season game is 61, but `nba_api` doesn't expose regular-season game highs cleanly without walking every season's game log. The field got renamed `career_high_playoffs` in the response payload so the narrator can't accidentally misrepresent it.
+
+## The thing I didn't expect
+
+This is where the work turned into something I hadn't planned for.
+
+The server was working. The tool was returning real data. The next step was bridging it into the LangGraph agent via `langchain-mcp-adapters`, which wraps MCP tools as `StructuredTool` instances the graph can call alongside the existing LangChain tools.
+
+What I hadn't checked before starting: MCP-bridged tools don't support synchronous invocation. Calling `StructuredTool.invoke()` on one raises a runtime error. The only supported path is `ainvoke()`.
+
+This is a reasonable constraint — MCP communication is inherently async, and forcing a synchronous wrapper would require either a nested event loop or blocking a thread in ways that interact poorly with existing async infrastructure. But the entire agent was synchronous. Everything had to change.
+
+The cascade looked like this:
+
+**`_graph.invoke()` → `_graph.ainvoke()`**. LangGraph's synchronous `invoke()` calls graph nodes synchronously. Once any node involves an async tool, you need `ainvoke()` to run the graph inside an event loop.
+
+**`_process_event()` → `async def _process_event()`**. The function that invokes the graph had to become a coroutine to `await _graph.ainvoke()`.
+
+**`main()` → `async def main()`**. The top-level entry point runs inside an event loop. The `if __name__ == "__main__":` block became `asyncio.run(main())`.
+
+**`consumer.poll()` → `loop.run_in_executor()`**. This was the constraint that made the refactor non-trivial. `confluent_kafka.Consumer.poll()` is a blocking C library call. Calling it directly inside an async function blocks the entire event loop — MCP tool calls would queue up behind each 1-second poll timeout. The fix was to dispatch it to the thread executor:
+
+```python
+msg = await loop.run_in_executor(None, consumer.poll, 1.0)
+```
+
+The event loop stays free during the poll. Tool calls and MCP responses can proceed while the consumer waits for the next Kafka message.
+
+**Signal handling → `loop.add_signal_handler()`**. The old `signal.signal(signal.SIGINT, handler)` approach doesn't compose with an async event loop — a signal fired during an `await` can be lost or cause unexpected behavior. The replacement:
+
+```python
+stop = asyncio.Event()
+for sig in (signal.SIGINT, signal.SIGTERM):
+    loop.add_signal_handler(sig, stop.set)
+```
+
+When either signal fires, `stop.set()` is scheduled on the event loop. The consumer loop checks `stop.is_set()` at the top of each iteration and exits cleanly.
+
+None of this was architecturally complex. Each individual change was small. But they were numerous and had to be made in the right order — you can't await a non-coroutine, and you can't call a sync function that depends on an async one without restructuring the call chain. The MCP bridging itself was about ten lines. The async migration that followed it was the rest of the afternoon.
+
+## 570 milliseconds
+
+Once the migration was done, there was another problem: each MCP tool call was spawning a new Python subprocess, running the tool, and exiting. The round-trip overhead was 570ms.
+
+A game replay has ~500 events. The classifier calls `get_player_profile` on a non-trivial fraction of them — any time career context might matter. At 570ms fixed overhead per call, the MCP layer would have been slower than just inlining the `nba_api` calls.
+
+The fix was to hold the session open for the lifetime of the run instead of re-spawning per call. `MultiServerMCPClient` supports this with an async context manager:
+
+```python
+async with mcp_client.session("nba") as session:
+    mcp_tools = await load_mcp_tools(session)
+    # session stays open; all tool calls use the same subprocess
+```
+
+With a persistent session, the per-call overhead dropped from 570ms to ~1ms. The subprocess is spawned once on entry to `main()` and torn down cleanly when the `async with` block exits.
+
+The mechanism is straightforward: Python subprocess spawning involves forking a new interpreter, importing the module tree, and running the module — that's hundreds of milliseconds on CPython. A persistent session amortizes that cost across every tool call for the entire run.
+
+## Telling the narrator what not to do
+
+The last piece was making sure the narrator used career context well — which mostly meant telling it when not to.
+
+The classifier fetches `get_player_profile` selectively: only when career context might meaningfully enrich a moment. For those events, the profile data gets passed to the narrator as part of the tool summary. The problem is that LLMs tend to use available context. If a player's draft position and career averages are in the prompt, the narrator will find a way to work them in — even when they add nothing.
+
+The narrator's system prompt has one explicit instruction on this:
+
+```
+When the classifier fetched career-level context via get_player_profile,
+weave ONE concrete detail into the narrative if and only if it strengthens
+the moment. Do NOT shoehorn career context into routine analysis. If nothing
+in the profile clearly elevates this specific moment, don't reach for it.
+```
+
+The "don't reach for it" framing matters more than the positive instruction. The model doesn't need to be told to use relevant context — it will. It needs to be told what counts as relevant. Career details now show up when they're genuinely load-bearing: Jokić's draft position on a statistically outsized game, a player's previous team on a big performance against former teammates. They disappear from everything else.
+
+## What comes next
+
+The new problem after MCP was cost: a single game replay was running $0.50–$1 in API credits. The next post covers how that came down by more than half — measurement infrastructure first, then prompt caching, then a deterministic pre-filter, then a model swap on the classifier. Each change validated against the baseline the previous one established.
