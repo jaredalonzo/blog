@@ -101,7 +101,7 @@ The following posts get into the decisions that followed:
 - **[Post 2](/posts/game-context-tracker-langraph-state)** — where game state lives, and why putting it in the consumer rather than the graph makes the agent easier to test
 - **[Post 3](/posts/two-models-two-jobs)** — why the classifier and narrator ended up as two separate LLM calls with different models, different temperatures, and different prompts
 - **[Post 4](/posts/debugging-a-library-you-didnt-write)** — a diagnostic story about `nba_api.live` silently swallowing a 403 and what it took to figure out what was actually broken
-- **Post 5** — how adding an MCP tool forced the entire agent async, and the 570ms-vs-1ms lesson about persistent subprocess sessions
+- **[Post 5](/posts/what-i-didnt-know-about-mcp)** — how adding an MCP tool forced the entire agent async, and the 570ms-vs-1ms lesson about persistent subprocess sessions
 - **Post 6** — four moves that cut per-game cost by 60–70%, each validated against the previous baseline
 
 The pattern across all of them is the same: I made a decision that seemed fine, hit a wall, and had to rethink it. That's most of what building agents actually is.
