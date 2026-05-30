@@ -1,0 +1,88 @@
+---
+title: "Four steps to cut LLM costs by 60–70%"
+description: "Measurement infrastructure, prompt caching, a deterministic prefilter, and a model swap. Each one validated against the previous baseline."
+pubDate: 2026-05-29
+tags: ["agents", "cost", "prompt-engineering", "anthropic"]
+draft: false
+---
+
+A game replay was running $3–$4 in Claude credits, which isn't too bad for a side project that only runs on select games — but if I want to scale this to run on multiple games or even run games in parallel, the costs get unwieldy fast.
+
+After multiple runs, analysis, and optimizations, the projected per-game cost is down 60–70%. Here's what each step was and what it actually showed.
+
+## Step 0: Measure first
+
+The first step was to write a `CostTracker` middleware. A LangChain callback handler that intercepts every `ChatAnthropic` response and records four token counters:
+
+- `input_tokens` — fresh, uncached prompt tokens
+- `cache_creation_input_tokens` — tokens written to the prompt cache
+- `cache_read_input_tokens` — tokens served from cache
+- `output_tokens` — generated tokens
+
+Anthropic bills these at different rates. Cache reads are about 1/10th the cost of fresh input tokens. A single "total tokens" number would make every subsequent comparison misleading.
+
+At shutdown, the `CostTracker` rolls up per-model totals, computes cost in USD, and appends a JSON line to `data/runs.jsonl`. Every optimization after this was validated against the run file.
+
+## Step 1: Prompt caching
+
+The classifier and narrator both have substantial system prompts. They're sent on every event — dozens of times per game — and the content never changes within a run. That's exactly what prompt caching is for.
+
+Adding `cache_control={"type": "ephemeral"}` to each system message tells Anthropic to write the prompt into a 5-minute cache on first use; subsequent calls within that window read from cache at ~$0.30/MTok instead of $3.00/MTok for Sonnet.
+
+One gotcha: Sonnet's minimum cacheable prefix is 1,024 tokens. The classifier system prompt alone is 567 tokens — below the threshold. Anthropic silently drops the cache marker with no error, no warning.
+
+What saves it: tool schemas count toward the cacheable prefix. The classifier system prompt with tools attached is 1,572 tokens. Caching activates on the real call path. The narrator's system prompt is comfortably above the minimum and caches reliably.
+
+The classifier prompt without tools still has the `cache_control` marker in the code — it costs nothing, and if Anthropic lowers the minimum, the savings activate automatically.
+
+## Step 2: Deterministic prefilter
+
+About 40–50% of play-by-play events are obviously routine before any LLM sees them. Four rules handle them:
+
+1. **Substitutions** — always skip. No game-state implication.
+2. **Period and game markers** — housekeeping events with empty descriptions.
+3. **Timeouts in Q1 or Q2** — no strategic pressure yet. Q3 onward goes to the classifier.
+4. **Free throws when the margin is 15+ points in Q1–Q3** — in a blowout, a free throw changes nothing narratable.
+
+The design principle is conservative. If a rule would drop even one narratable play per game, it doesn't belong here. Q4 free throws are never prefiltered regardless of margin — foul-trouble logic and intentional fouling make them worth the classifier's attention. The prefilter returns an `Action` enum value matching the classifier's own skip taxonomy, so the calling code treats both identically.
+
+19 unit tests. Nothing clever.
+
+## Step 3: Model swap
+
+The classifier's job is routing — yes or no, and which tool to call first. It doesn't need to write prose or reason about narrative weight. Haiku is a cheaper model overall, and for a binary routing decision it's more than capable. The narrator, which actually has to produce something worth reading, stays on Sonnet.
+
+The measurement backed this up. On 8 realistic events run through both models side-by-side:
+
+| Model | Input tokens | Output tokens | Cost |
+|---|---|---|---|
+| Sonnet 4.6 (with caching) | 1,572 system | ~80 output | baseline |
+| Haiku 4.5 (no caching) | 1,572 system | ~26 output | **39% cheaper** |
+
+Haiku writes terser responses. Output tokens are billed at $5/MTok for Haiku vs $15/MTok for Sonnet — and Haiku produces about 3× fewer of them. That dominates the math once you're past the first cold call.
+
+Agreement rate across the 8 events: 7/8 (87%). The one disagreement was a semantic equivalence — both models correctly chose not to analyze the event, just into slightly different skip buckets.
+
+## The combined picture
+
+| Step | Effect |
+|---|---|
+| Prompt caching | Reduces per-call input cost after the first event |
+| Prefilter | Eliminates ~40–50% of classifier calls entirely |
+| Haiku classifier | 39% cheaper per remaining classifier call |
+
+Projected per-game cost: down 60–70% from the $3–$4 baseline.
+
+Three of these steps are pretty straightforward. The interesting one was the model swap — not because the result was surprising, but because the output token rate is what actually drives the cost difference. Measure the output side too.
+
+---
+
+This is the last post in this initial series on building agentic systems. The project started as an experiment in queue-driven agents and ended up touching a surprising range of real engineering problems — state management, third-party library debugging, async constraints from protocol-level integrations, and cost optimization that required actual measurement to get right.
+
+A few directions I'm thinking about exploring next:
+
+**Persistence layer with pgvector.** Right now play-by-play events are consumed and discarded — only the generated insights are written to disk. Adding Postgres with pgvector would let the agent store every event and retrieve semantically similar historical moments at query time. That opens up richer career comparisons ("the last time a player scored 7 straight points in Q4 of a playoff game") without having to call the NBA API mid-stream.
+
+**Local LLM for the classifier.** Haiku is already cheap, but it still means an API call per event. Running a local model via Ollama for the classifier would bring that cost to near-zero and remove the dependency on an external service for what is essentially a routing decision. The tradeoff is model quality and setup overhead — but a classifier that only needs to output a label is probably a good candidate for a smaller local model.
+
+**Apache Flink.** The current consumer is a hand-rolled polling loop with a `GameContextTracker` managing state in memory. Flink would replace that with a proper stateful stream processing layer — one that handles windowing, fault tolerance, and exactly-once semantics natively. It's a meaningful step up in infrastructure complexity, but it's also the natural next layer for this pattern: once you're doing real-time stateful event processing, Flink is what that looks like at scale.
