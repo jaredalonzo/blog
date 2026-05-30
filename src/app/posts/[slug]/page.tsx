@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { compileMDX } from "next-mdx-remote/rsc";
 import rehypePrettyCode from "rehype-pretty-code";
+import remarkGfm from "remark-gfm";
 import { getAllPosts, getPostBySlug } from "@/lib/posts";
 import type { Metadata } from "next";
 
@@ -35,6 +36,7 @@ export default async function PostPage({ params }: Props) {
     source: post.content,
     options: {
       mdxOptions: {
+        remarkPlugins: [remarkGfm],
         rehypePlugins: [
           [rehypePrettyCode, { theme: { dark: "github-dark", light: "github-light" } }],
         ],
