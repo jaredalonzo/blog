@@ -8,7 +8,7 @@ export function ThemeToggle() {
 
   useEffect(() => setMounted(true), []);
 
-  if (!mounted) return <div className="w-8 h-5" />;
+  if (!mounted) return <span className="inline-block w-[18px] h-[18px]" />;
 
   const isDark = resolvedTheme === "dark";
 
