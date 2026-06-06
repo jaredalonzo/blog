@@ -30,7 +30,7 @@ export default function Home() {
             {posts.map((post) => (
               <li key={post.slug}>
                 <Link href={`/posts/${post.slug}`} className="group">
-                  <time className="text-sm text-gray-400">
+                  <time dateTime={post.frontmatter.pubDate} className="text-sm text-gray-400">
                     {post.frontmatter.pubDate}
                   </time>
                   <h3 className="text-lg font-medium group-hover:underline mt-0.5">
