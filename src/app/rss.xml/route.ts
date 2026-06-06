@@ -4,6 +4,10 @@ function cdata(str: string): string {
   return `<![CDATA[${str.replace(/]]>/g, "]]>]]><![CDATA[")}]]>`;
 }
 
+function escapeXml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 const SITE_URL = "https://jaredalonzo.dev";
 const SITE_TITLE = "Jared Alonzo";
 const SITE_DESCRIPTION = "Engineering writing by Jared Alonzo.";
@@ -16,8 +20,8 @@ export function GET() {
       (post) => `
     <item>
       <title>${cdata(post.frontmatter.title)}</title>
-      <link>${SITE_URL}/posts/${post.slug}</link>
-      <guid>${SITE_URL}/posts/${post.slug}</guid>
+      <link>${SITE_URL}/posts/${escapeXml(post.slug)}</link>
+      <guid>${SITE_URL}/posts/${escapeXml(post.slug)}</guid>
       <pubDate>${new Date(post.frontmatter.pubDate).toUTCString()}</pubDate>
       <description>${cdata(post.frontmatter.description)}</description>
     </item>`
