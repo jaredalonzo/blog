@@ -55,7 +55,14 @@ function readPost(filename: string): Post {
 
 export function getAllPosts(): Post[] {
   const files = fs.readdirSync(POSTS_DIR).filter((f) => f.endsWith(".mdx"));
-  const posts = files.map(readPost);
+  const posts: Post[] = [];
+  for (const file of files) {
+    try {
+      posts.push(readPost(file));
+    } catch (err) {
+      console.error(`Skipping ${file}:`, err);
+    }
+  }
   const isProduction = process.env.NODE_ENV === "production";
   return posts
     .filter((p) => !isProduction || !p.frontmatter.draft)
