@@ -1,5 +1,9 @@
 import { getAllPosts } from "@/lib/posts";
 
+function cdata(str: string): string {
+  return `<![CDATA[${str.replace(/]]>/g, "]]>]]><![CDATA[")}]]>`;
+}
+
 const SITE_URL = "https://jaredalonzo.dev";
 const SITE_TITLE = "Jared Alonzo";
 const SITE_DESCRIPTION = "Engineering writing by Jared Alonzo.";
@@ -11,11 +15,11 @@ export function GET() {
     .map(
       (post) => `
     <item>
-      <title><![CDATA[${post.frontmatter.title}]]></title>
+      <title>${cdata(post.frontmatter.title)}</title>
       <link>${SITE_URL}/posts/${post.slug}</link>
       <guid>${SITE_URL}/posts/${post.slug}</guid>
       <pubDate>${new Date(post.frontmatter.pubDate).toUTCString()}</pubDate>
-      <description><![CDATA[${post.frontmatter.description}]]></description>
+      <description>${cdata(post.frontmatter.description)}</description>
     </item>`
     )
     .join("");
