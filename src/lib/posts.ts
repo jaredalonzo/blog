@@ -73,5 +73,7 @@ export function getPostBySlug(slug: string): Post | undefined {
   const filename = `${slug}.mdx`;
   const filepath = path.join(POSTS_DIR, filename);
   if (!fs.existsSync(filepath)) return undefined;
-  return readPost(filename);
+  const post = readPost(filename);
+  if (process.env.NODE_ENV === "production" && post.frontmatter.draft) return undefined;
+  return post;
 }
