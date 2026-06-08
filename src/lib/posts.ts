@@ -66,7 +66,7 @@ export function getAllPosts(): Post[] {
   const isProduction = process.env.NODE_ENV === "production";
   return posts
     .filter((p) => !isProduction || !p.frontmatter.draft)
-    .sort((a, b) => (a.frontmatter.pubDate < b.frontmatter.pubDate ? 1 : -1));
+    .sort((a, b) => new Date(b.frontmatter.pubDate).getTime() - new Date(a.frontmatter.pubDate).getTime());
 }
 
 export function getPostBySlug(slug: string): Post | undefined {
