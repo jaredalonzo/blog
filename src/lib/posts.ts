@@ -5,6 +5,10 @@ import { cache } from "react";
 
 const POSTS_DIR = path.join(process.cwd(), "content/posts");
 
+function draftsShouldBeHidden(): boolean {
+  return process.env.NODE_ENV === "production" && process.env.SHOW_DRAFTS !== "true";
+}
+
 export interface PostFrontmatter {
   title: string;
   description: string;
@@ -69,9 +73,8 @@ export function getAllPosts(): Post[] {
       console.error(`Skipping ${file}:`, err);
     }
   }
-  const isProduction = process.env.NODE_ENV === "production";
   return posts
-    .filter((p) => !isProduction || !p.frontmatter.draft)
+    .filter((p) => !draftsShouldBeHidden() || !p.frontmatter.draft)
     .sort((a, b) => new Date(b.frontmatter.pubDate).getTime() - new Date(a.frontmatter.pubDate).getTime());
 }
 
@@ -85,6 +88,6 @@ export const getPostBySlug = cache(function getPostBySlug(slug: string): Post | 
   } catch {
     return undefined;
   }
-  if (process.env.NODE_ENV === "production" && post.frontmatter.draft) return undefined;
+  if (draftsShouldBeHidden() && post.frontmatter.draft) return undefined;
   return post;
 });
