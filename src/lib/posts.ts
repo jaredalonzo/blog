@@ -49,7 +49,12 @@ function validate(slug: string, data: Record<string, unknown>): PostFrontmatter 
 
 function readPost(filename: string): Post {
   const slug = filename.replace(/\.mdx$/, "");
-  const raw = fs.readFileSync(path.join(POSTS_DIR, filename), "utf-8");
+  let raw: string;
+  try {
+    raw = fs.readFileSync(path.join(POSTS_DIR, filename), "utf-8");
+  } catch {
+    throw new Error(`${slug}: file not found or unreadable`);
+  }
   const { data, content } = matter(raw);
   return { slug, frontmatter: validate(slug, data), content };
 }
@@ -74,8 +79,12 @@ export const getPostBySlug = cache(function getPostBySlug(slug: string): Post | 
   const filename = `${slug}.mdx`;
   const filepath = path.join(POSTS_DIR, filename);
   if (!filepath.startsWith(POSTS_DIR + path.sep)) return undefined;
-  if (!fs.existsSync(filepath)) return undefined;
-  const post = readPost(filename);
+  let post: Post;
+  try {
+    post = readPost(filename);
+  } catch {
+    return undefined;
+  }
   if (process.env.NODE_ENV === "production" && post.frontmatter.draft) return undefined;
   return post;
 });
