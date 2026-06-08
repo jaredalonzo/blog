@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
+import { cache } from "react";
 
 const POSTS_DIR = path.join(process.cwd(), "content/posts");
 
@@ -69,7 +70,7 @@ export function getAllPosts(): Post[] {
     .sort((a, b) => new Date(b.frontmatter.pubDate).getTime() - new Date(a.frontmatter.pubDate).getTime());
 }
 
-export function getPostBySlug(slug: string): Post | undefined {
+export const getPostBySlug = cache(function getPostBySlug(slug: string): Post | undefined {
   const filename = `${slug}.mdx`;
   const filepath = path.join(POSTS_DIR, filename);
   if (!filepath.startsWith(POSTS_DIR + path.sep)) return undefined;
@@ -77,4 +78,4 @@ export function getPostBySlug(slug: string): Post | undefined {
   const post = readPost(filename);
   if (process.env.NODE_ENV === "production" && post.frontmatter.draft) return undefined;
   return post;
-}
+});
