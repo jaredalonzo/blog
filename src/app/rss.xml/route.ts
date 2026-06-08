@@ -22,7 +22,7 @@ export function GET() {
       <title>${cdata(post.frontmatter.title)}</title>
       <link>${SITE_URL}/posts/${escapeXml(post.slug)}</link>
       <guid>${SITE_URL}/posts/${escapeXml(post.slug)}</guid>
-      <pubDate>${new Date(post.frontmatter.pubDate).toUTCString()}</pubDate>
+      <pubDate>${new Date(`${post.frontmatter.pubDate}T12:00:00Z`).toUTCString()}</pubDate>
       <description>${cdata(post.frontmatter.description)}</description>
     </item>`
     )
