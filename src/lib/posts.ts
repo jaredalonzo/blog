@@ -27,6 +27,10 @@ export interface Post {
 
 function toDateString(value: unknown): string {
   if (value instanceof Date) return value.toISOString().split("T")[0];
+  if (typeof value === "string" && value.includes("T")) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+  }
   return String(value);
 }
 
