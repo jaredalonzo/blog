@@ -41,13 +41,16 @@ function validate(slug: string, data: Record<string, unknown>): PostFrontmatter 
     throw new Error(`${slug}: missing or invalid "description"`);
   if (!data.pubDate)
     throw new Error(`${slug}: missing "pubDate"`);
+  const pubDate = toDateString(data.pubDate);
+  if (isNaN(new Date(pubDate).getTime()))
+    throw new Error(`${slug}: "pubDate" is not a valid date: ${pubDate}`);
   if (!Array.isArray(data.tags))
     throw new Error(`${slug}: "tags" must be an array`);
 
   return {
     title: data.title,
     description: data.description,
-    pubDate: toDateString(data.pubDate),
+    pubDate,
     updatedDate: data.updatedDate ? toDateString(data.updatedDate) : undefined,
     tags: data.tags as string[],
     draft: data.draft === true,
