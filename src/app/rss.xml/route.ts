@@ -1,7 +1,7 @@
 import { getAllPosts } from "@/lib/posts";
 
 function cdata(str: string): string {
-  return `<![CDATA[${str.replace(/]]>/g, "]]>]]><![CDATA[")}]]>`;
+  return `<![CDATA[${str.replace(/]]>/g, "]]]]><![CDATA[>")}]]>`;
 }
 
 function escapeXml(str: string): string {
