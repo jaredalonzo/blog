@@ -14,9 +14,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://jaredalonzo.dev";
+
 export const metadata: Metadata = {
-  title: "Jared Alonzo",
+  title: {
+    default: "Jared Alonzo",
+    template: "%s | Jared Alonzo",
+  },
   description: "Engineering writing by Jared Alonzo.",
+  metadataBase: new URL(BASE_URL),
+  authors: [{ name: "Jared Alonzo", url: BASE_URL }],
+  openGraph: {
+    type: "website",
+    url: BASE_URL,
+    siteName: "Jared Alonzo",
+    title: "Jared Alonzo",
+    description: "Engineering writing by Jared Alonzo.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Jared Alonzo",
+    description: "Engineering writing by Jared Alonzo.",
+  },
+  alternates: {
+    canonical: BASE_URL,
+    types: {
+      "application/rss+xml": `${BASE_URL}/rss.xml`,
+    },
+  },
 };
 
 export default function RootLayout({

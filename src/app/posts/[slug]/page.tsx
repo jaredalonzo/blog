@@ -14,16 +14,39 @@ export async function generateStaticParams() {
   return getAllPosts().map((post) => ({ slug: post.slug }));
 }
 
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://jaredalonzo.dev";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = getPostBySlug(slug);
   if (!post) notFound();
+
+  const { title, description, pubDate, updatedDate, tags, canonical } = post.frontmatter;
+  const postUrl = `${BASE_URL}/posts/${slug}`;
+
   return {
-    title: post.frontmatter.title,
-    description: post.frontmatter.description,
-    ...(post.frontmatter.canonical && {
-      alternates: { canonical: post.frontmatter.canonical },
-    }),
+    title,
+    description,
+    authors: [{ name: "Jared Alonzo", url: BASE_URL }],
+    keywords: tags,
+    alternates: {
+      canonical: canonical ?? postUrl,
+    },
+    openGraph: {
+      type: "article",
+      url: postUrl,
+      title,
+      description,
+      publishedTime: pubDate,
+      ...(updatedDate && { modifiedTime: updatedDate }),
+      authors: ["Jared Alonzo"],
+      tags,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
   };
 }
 
