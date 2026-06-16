@@ -88,7 +88,7 @@ export function getAllPosts(): Post[] {
 export const getPostBySlug = cache(function getPostBySlug(slug: string): Post | undefined {
   const filename = `${slug}.mdx`;
   const filepath = path.join(POSTS_DIR, filename);
-  if (!filepath.startsWith(POSTS_DIR + path.sep)) return undefined;
+  if (!path.resolve(filepath).startsWith(path.resolve(POSTS_DIR) + path.sep)) return undefined;
   let post: Post;
   try {
     post = readPost(filename);
