@@ -46,15 +46,34 @@ function validate(slug: string, data: Record<string, unknown>): PostFrontmatter 
     throw new Error(`${slug}: "pubDate" is not a valid date: ${pubDate}`);
   if (!Array.isArray(data.tags))
     throw new Error(`${slug}: "tags" must be an array`);
+  if (data.tags.some((t) => typeof t !== "string" || t.trim() === ""))
+    throw new Error(`${slug}: each tag must be a non-empty string`);
+
+  let updatedDate: string | undefined;
+  if (data.updatedDate) {
+    updatedDate = toDateString(data.updatedDate);
+    if (isNaN(new Date(updatedDate).getTime()))
+      throw new Error(`${slug}: "updatedDate" is not a valid date: ${updatedDate}`);
+  }
+
+  let canonical: string | undefined;
+  if (data.canonical) {
+    canonical = String(data.canonical);
+    try {
+      new URL(canonical);
+    } catch {
+      throw new Error(`${slug}: "canonical" is not a valid URL: ${canonical}`);
+    }
+  }
 
   return {
     title: data.title,
     description: data.description,
     pubDate,
-    updatedDate: data.updatedDate ? toDateString(data.updatedDate) : undefined,
+    updatedDate,
     tags: data.tags as string[],
     draft: data.draft === true,
-    canonical: data.canonical ? String(data.canonical) : undefined,
+    canonical,
   };
 }
 
