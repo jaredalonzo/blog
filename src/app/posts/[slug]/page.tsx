@@ -67,8 +67,31 @@ export default async function PostPage({ params }: Props) {
     },
   });
 
+  const { title, description, pubDate, updatedDate, tags, canonical } = post.frontmatter;
+  const postUrl = `${BASE_URL}/posts/${slug}`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: title,
+    description,
+    url: canonical ?? postUrl,
+    datePublished: pubDate,
+    ...(updatedDate && { dateModified: updatedDate }),
+    keywords: tags.join(", "),
+    author: {
+      "@type": "Person",
+      name: "Jared Alonzo",
+      url: BASE_URL,
+    },
+  };
+
   return (
     <main className="max-w-4xl mx-auto px-4 py-10 sm:py-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="mb-8 sm:mb-10">
         <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
           ← Home
