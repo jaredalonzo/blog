@@ -1,0 +1,57 @@
+---
+title: "How Agent Memory Works"
+description: "The four types of memory in an AI agent, from the ground up — working, semantic, procedural, and episodic, and why memory is curation, not capacity."
+pubDate: 2026-07-01
+tags: ["agents", "memory", "claude-code", "llm"]
+draft: false
+---
+
+Working with agentic assistants has been genuinely life-changing for how I approach my personal projects. I've always struggled to get back into my own side projects and see them through or even get them to a working state at all. Agentic assistants have changed that, helping me both come up with ideas and actually ship them. But a lot of that leverage comes down to small habits with the tool itself, not the tool alone. I've been using Claude Code for a minute now, and I've built the muscle memory of periodically running the `/context` and `/compact` commands. Resuming sessions and using the `/agents` command to run agents and subagents in parallel are other techniques I lean on to segment focused work. And Claude skills are a quick way to execute repeatable workflows.
+
+For a while I used all of these without thinking much about what was happening underneath. I was curious about how agent memory worked, so I decided to dive a little deeper into the mechanics and fundamentals. What made it click was realizing memory isn't one thing. It's four. The clearest breakdown I found splits it into working, semantic, procedural, and episodic memory, and once I had those four buckets, the habits I had built started to look less like handy tricks and more like memory management I had been doing all along without the vocabulary for it.
+
+These categories aren't an AI invention. They're borrowed from how cognitive scientists describe human memory, and the borrowing is the useful part: if you want to reason about what an agent can and can't hold onto, start from the human version, because the engineering maps onto it more cleanly than you'd expect.
+
+## Working memory: the desk
+
+Think of the context window as a desk. It's the surface where the agent does its work, and everything it needs in front of it right now has to fit on that surface: the instructions, the conversation, the files it's referencing, the results of whatever it just looked up. A bigger context window is a bigger desk. It gives the agent more room to spread things out, which helps, but it doesn't change what a desk is.
+
+In computing terms, the desk is RAM. If an agent can take on a one million token context window, that is its RAM capacity: a million tokens of space for everything it needs to attend to in this moment. And like RAM, two things stay true no matter how large it gets.
+
+The first is that the desk is cleared at the end of every session. Whatever was spread across it is gone, and the next session starts with a blank surface. The desk has no idea what sat on it yesterday. The second is subtler: even on an enormous desk, the agent can only focus on a handful of pages at once. Pile a million pages onto it and the ones in the middle get buried. More surface area is not the same as more attention, and past a certain point the clutter works against you.
+
+That's the gap a desk can't close. Working memory is where the thinking happens, not where anything is kept. For an agent to remember across sessions, it needs the equivalent of the shelves and filing cabinets behind the desk: somewhere to file things away on purpose and pull them back when they're needed. That's what the other three types of memory are for.
+
+## The three long-term types
+
+If working memory is the desk, the other three types are the storage behind it. They persist across sessions, they live outside the model, and each one holds a different kind of thing.
+
+_Semantic memory_ is the agent's store of stable facts, and a concrete example is a markdown file like CLAUDE.md sitting in a project. It holds the things the agent should treat as true every time: how the codebase is structured, what conventions to follow, what the user prefers. The defining trait of semantic memory is that it is always brought into the context. The agent doesn't decide whether to load CLAUDE.md. It's just there, part of the baseline the agent reasons from in every session.
+
+_Procedural memory_ is how to do things, and in practice it's the agent's skills. A SKILL.md file describes a procedure, how to format a document or run a code review, and this is where the key difference from semantic memory shows up: skills use progressive disclosure. They are not loaded into working memory until the agent needs them. The agent knows a skill is available, but it doesn't pull the full instructions into the context until the task calls for it. A skill is a conditional resource, summoned just in time at the moment of execution and left out of the window the rest of the time.
+
+That is the cleanest line between the two. Semantic memory is always in the context. Procedural memory is JIT'd, loaded only when the task calls for it. CLAUDE.md is always on the desk. A skill stays in the drawer until you reach for it.
+
+_Episodic memory_ is the overall history, the record of what happened across the agent's past interactions. The naive version is the full transcript, but you can't carry all of it forever, so the real work is distillation: looking back over the history and pulling only the relevant slice into the current context. That is also why episodic is the hardest of the four to nail. Deciding what counts as relevant to the step the agent is on right now is a hard problem on its own. Keep too little and the agent forgets something that mattered. Keep too much and you've just refilled the window with noise.
+
+Working memory holds the moment, semantic holds what is always true, procedural holds the how but only when summoned, episodic holds what happened.
+
+## Not every agent needs all four
+
+One caveat worth stating plainly: not every agent needs all four. The types are a menu, not a checklist. Take an NBA agent built to watch a game and flag plays worth analyzing. The classification agent inside it, the part that decides whether a given play is even interesting enough to look at, mostly needs working memory to hold the current play and semantic memory to know what makes a play notable. It has little use for procedural or episodic memory, because it isn't running multi-step workflows and it doesn't need to learn from the history of plays it has already seen. Reaching for all four when the job calls for two is how you end up with an agent that is slower and harder to reason about than it needs to be.
+
+## Writing and reading
+
+Knowing the four types still leaves the mechanical question: how does something get into long-term memory, and how does the right piece come back at the right moment? It comes down to two paths.
+
+The write path is where the work happens. When the agent encounters something worth keeping, the system doesn't just dump the raw text into storage. It extracts what matters, turns it into a form that's easy to search later, usually an embedding alongside a structured record, and indexes it. That is deliberately the expensive step. Memory is written once but read many times, so it pays to do the heavy lifting up front and keep retrieval cheap.
+
+The read path is the other half, and it's where most of an agent's apparent intelligence comes from. When the agent hits a moment where the past might help, it queries the store. Retrieval ranks what it finds by relevance, usually some blend of semantic similarity, keyword matching, and entity matching, weighted by how recent each memory is, then lifts the top results back onto the desk for that step. The store can hold everything. The desk can only hold a little. So the quality of an agent's memory is, in practice, the quality of its retrieval.
+
+This is the same problem the episodic section ran into, seen from the other side. Storing history is easy. Pulling back the slice that matters for the step the agent is on is the hard part, and it's what separates an agent that feels like it remembers you from one that just has a big database it can't use well.
+
+## Memory is curation, not capacity
+
+The thing I keep coming back to is that memory was never really about how much an agent can store. It's about what it keeps, when it refreshes it, and what it lets go. A store you never prune fills with noise. A fact you never refresh goes stale and turns confidently wrong, like an agent that still thinks you work where you worked two jobs ago. Capacity is the easy part. Curation is the work.
+
+Which brings me back to the habits I started with. Running /compact is curation, deciding what's worth carrying forward and what can be dropped. Resuming a session is choosing which thread of history to bring back to the desk. Reaching for a skill is loading a procedure only when the moment calls for it. I had been doing this by hand the whole time, managing working memory, episodic recall, and procedural skills without naming any of it. Seeing the structure underneath didn't change what I do day to day, but it changed how clearly I can reason about why some agents feel like they remember, and why so many still don't.
