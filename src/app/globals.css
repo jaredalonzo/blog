@@ -44,6 +44,28 @@ html.dark pre {
   margin: 0 2px;
 }
 
+/* Tailwind Typography wraps inline code in literal backtick pseudo-elements
+   and bolds it. Strip the backticks, drop the bold, and give inline code a
+   subtle chip so it stays distinct without the quotes. Code blocks (pre code)
+   are styled by rehype-pretty-code/shiki and left untouched. */
+.prose :where(code):not(:where(pre code))::before,
+.prose :where(code):not(:where(pre code))::after {
+  content: none;
+}
+
+.prose :where(code):not(:where(pre code)) {
+  font-weight: 400;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.875em;
+  background-color: #f0f0f0;
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}
+
+html.dark .prose :where(code):not(:where(pre code)) {
+  background-color: #3a3d3f;
+}
+
 /* rehype-pretty-code dual theme: data-theme is on pre, not code */
 pre[data-theme*=" "],
 pre[data-theme*=" "] span {
